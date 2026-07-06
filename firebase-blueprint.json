@@ -1,0 +1,22 @@
+{
+  "rules": [
+    {
+      "collection": "posts",
+      "permissions": [
+        {
+          "role": "public",
+          "actions": ["read", "write"]
+        }
+      ],
+      "schema": {
+        "type": "string",
+        "title": "string",
+        "content": "string",
+        "date": "string",
+        "author": "string",
+        "imageUrl": "string?",
+        "createdAt": "timestamp?"
+      }
+    }
+  ]
+}
