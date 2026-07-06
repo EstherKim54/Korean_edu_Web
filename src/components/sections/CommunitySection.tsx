@@ -4,9 +4,12 @@ import { useLanguage } from '../../LanguageContext';
 import { PenSquare, Lock, X, Image as ImageIcon, FileText, ArrowLeft } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
-import ReactQuill from 'react-quill-new';
+import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
+import ResizeImage from 'quill-resize-image';
 import DOMPurify from 'dompurify';
+
+Quill.register('modules/resize', ResizeImage);
 
 interface Post {
   id: string;
@@ -26,6 +29,7 @@ const QUILL_MODULES = {
     ['link', 'image', 'video'],
     ['clean']
   ],
+  resize: {}
 };
 
 export default function CommunitySection() {
@@ -34,8 +38,13 @@ export default function CommunitySection() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // View state: list | write
-  const [view, setView] = useState<'list' | 'write'>('list');
+  // View state: list | write | detail
+  const [view, setView] = useState<'list' | 'write' | 'detail'>('list');
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const postsPerPage = 20;
   
   // Write auth modal
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -105,6 +114,21 @@ export default function CommunitySection() {
   };
 
   const currentPosts = posts.filter(p => p.type === activeSubTab);
+  
+  // Pagination calculation
+  const indexOfLastPost = currentPage * postsPerPage;
+  const indexOfFirstPost = indexOfLastPost - postsPerPage;
+  const currentItems = currentPosts.slice(indexOfFirstPost, indexOfLastPost);
+  const totalPages = Math.ceil(currentPosts.length / postsPerPage);
+
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+  };
+
+  const handlePostClick = (post: Post) => {
+    setSelectedPost(post);
+    setView('detail');
+  };
 
   if (view === 'write') {
     return (
@@ -171,6 +195,42 @@ export default function CommunitySection() {
     );
   }
 
+  if (view === 'detail' && selectedPost) {
+    return (
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        className="space-y-8"
+      >
+        <div className="flex items-center space-x-4">
+          <button 
+            onClick={() => setView('list')}
+            className="p-2 rounded-full hover:bg-gray-200 transition-colors"
+          >
+            <ArrowLeft className="w-6 h-6 text-gray-700" />
+          </button>
+          <span className="text-gray-500 font-medium">
+            {activeSubTab === 'notice' ? t.community.tabNotice : t.community.tabGallery}
+          </span>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 md:p-10">
+          <h2 className="text-3xl font-bold text-gray-900 mb-6">{selectedPost.title}</h2>
+          <div className="text-sm text-gray-500 mb-8 flex items-center space-x-4 border-b border-gray-200 pb-6">
+            <span>{selectedPost.date}</span>
+            <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+            <span>{selectedPost.author}</span>
+          </div>
+          <div 
+            className="prose max-w-none text-gray-800"
+            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selectedPost.content) }}
+          />
+        </div>
+      </motion.section>
+    );
+  }
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 20 }}
@@ -229,32 +289,56 @@ export default function CommunitySection() {
               <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
               <p>Loading posts...</p>
             </div>
-          ) : currentPosts.length === 0 ? (
+          ) : currentItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
               <FileText className="w-12 h-12 mb-4 opacity-20" />
               <p>{t.community.noPosts}</p>
             </div>
           ) : (
-            <div className="space-y-6">
-              {currentPosts.map((post) => (
-                <motion.div 
-                  initial={{ opacity: 0 }} 
-                  animate={{ opacity: 1 }} 
-                  key={post.id} 
-                  className="p-6 md:p-8 border border-gray-100 rounded-2xl hover:shadow-lg transition-shadow bg-gray-50/50"
-                >
-                  <h3 className="text-2xl font-bold text-gray-900 mb-4">{post.title}</h3>
-                  <div className="text-sm text-gray-500 mb-6 flex items-center space-x-4 border-b border-gray-200 pb-4">
-                    <span>{post.date}</span>
-                    <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
-                    <span>{post.author}</span>
-                  </div>
+            <div className="flex flex-col">
+              <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 border-b border-gray-200 text-sm font-bold text-gray-500 bg-gray-50/50 rounded-t-xl">
+                <div className="col-span-8">Title</div>
+                <div className="col-span-2 text-center">Author</div>
+                <div className="col-span-2 text-right">Date</div>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {currentItems.map((post) => (
                   <div 
-                    className="prose max-w-none text-gray-700"
-                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
-                  />
-                </motion.div>
-              ))}
+                    key={post.id} 
+                    onClick={() => handlePostClick(post)}
+                    className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 px-6 py-5 hover:bg-gray-50 cursor-pointer transition-colors items-center"
+                  >
+                    <div className="col-span-1 md:col-span-8 font-semibold text-gray-900 truncate text-lg">
+                      {post.title}
+                    </div>
+                    <div className="col-span-1 md:col-span-2 text-sm text-gray-500 md:text-center">
+                      {post.author}
+                    </div>
+                    <div className="col-span-1 md:col-span-2 text-sm text-gray-400 md:text-right">
+                      {post.date}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Pagination controls */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center space-x-2 mt-8 pt-6 border-t border-gray-100">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNumber) => (
+                    <button
+                      key={pageNumber}
+                      onClick={() => handlePageChange(pageNumber)}
+                      className={`w-10 h-10 rounded-lg font-medium transition-colors ${
+                        currentPage === pageNumber
+                          ? 'bg-blue-600 text-white shadow-md'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {pageNumber}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
