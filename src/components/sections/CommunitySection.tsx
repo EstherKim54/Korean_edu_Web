@@ -4,7 +4,8 @@ import { useLanguage } from '../../LanguageContext';
 import { PenSquare, Lock, X, Image as ImageIcon, FileText, ArrowLeft } from 'lucide-react';
 import { db } from '../../lib/firebase';
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
-import ReactQuill from 'react-quill';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
 import DOMPurify from 'dompurify';
 
 interface Post {
