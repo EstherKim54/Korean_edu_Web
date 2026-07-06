@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useLanguage } from '../../LanguageContext';
 import { PenSquare, Lock, X, Image as ImageIcon, FileText, ArrowLeft } from 'lucide-react';
 import { db } from '../../lib/firebase';
-import { collection, addDoc, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, limit } from 'firebase/firestore';
 import ReactQuill, { Quill } from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import ResizeImage from 'quill-resize-image';
@@ -55,26 +55,23 @@ export default function CommunitySection() {
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
 
-  // Load posts from Firestore
-  const fetchPosts = async () => {
+  useEffect(() => {
     setLoading(true);
-    try {
-      const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'));
-      const querySnapshot = await getDocs(q);
+    const q = query(collection(db, 'posts'), orderBy('createdAt', 'desc'), limit(100));
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const fetchedPosts: Post[] = [];
       querySnapshot.forEach((doc) => {
         fetchedPosts.push({ id: doc.id, ...doc.data() } as Post);
       });
       setPosts(fetchedPosts);
-    } catch (e) {
-      console.error('Error fetching posts: ', e);
-    } finally {
       setLoading(false);
-    }
-  };
+    }, (error) => {
+      console.error('Error fetching posts: ', error);
+      setLoading(false);
+    });
 
-  useEffect(() => {
-    fetchPosts();
+    return () => unsubscribe();
   }, []);
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
@@ -106,7 +103,6 @@ export default function CommunitySection() {
       });
       
       setView('list');
-      fetchPosts();
     } catch (e) {
       console.error('Error adding document: ', e);
       alert('Failed to post. Please try again.');
